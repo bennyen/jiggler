@@ -1,5 +1,6 @@
 import os
 import platform
+import logging
 import time
 from random import randint
 from threading import Thread, current_thread
@@ -9,72 +10,56 @@ import click
 from pynput.keyboard import Controller as KeyboardController
 from pynput.keyboard import Key
 from pynput.keyboard import Listener as KeyboardListener
+from pynput.mouse import Listener as MouseListener
 from pynput.mouse import Controller as MouseController
 
+from src import state
 
+log = logging.getLogger(__name__)
 
-mouse = MouseController()
-keyboard = KeyboardController()
+def on_move(x, y):
+    state.update_jiggle_time()
+    log.debug('Pointer moved to {0}'.format(
+        (x, y)))
 
+def on_click(x, y, button, pressed):
+    state.update_jiggle_time()
+    log.debug('{0} at {1}'.format(
+        'Pressed' if pressed else 'Released',
+        (x, y)))
+    if not pressed:
+        # Stop listener
+        return False
+
+def on_scroll(x, y, dx, dy):
+    state.update_jiggle_time()
+    log.debug('Scrolled {0} at {1}'.format(
+        'down' if dy < 0 else 'up',
+        (x, y)))
 def on_press(key):
-    try:
-        print('alphanumeric key {0} pressed'.format(
-            key.char))
-    except AttributeError:
-        print('special key {0} pressed'.format(
-            key))
+    state.update_jiggle_time()
+    log.debug('key pressed: ' + str(key))
 
 def on_release(key):
-    print('{0} released'.format(
-        key))
+    state.update_jiggle_time()
 
-
-keyboardListener = KeyboardListener(on_press=on_press, on_release=on_release)
-
+keyboard = KeyboardController()
+mouse = MouseController()
+keyboardListener = KeyboardListener(on_press=state.update_jiggle_time, on_release=state.update_jiggle_time)
+mouseListener = MouseListener(
+    on_move=state.update_jiggle_time,
+    on_click=state.update_jiggle_time,
+    on_scroll=state.update_jiggle_time)
 special_keys = {
     "Darwin": "cmd",
     "Linux": "alt",
     "Windows": "alt",
 }
 
-
-def _key_press(seconds):
-    """Presses Shift key every x seconds
-
-    Args:
-        seconds (int): Seconds to wait between consecutive key press actions
-    """
-    this = current_thread()
-    this.alive = True
-    while this.alive:
-        sleep(seconds)
-        if not this.alive:
-            break
-
-        key_press()
-
 def key_press():
     keyboard.press(Key.shift)
     keyboard.release(Key.shift)
-    print(f"{time.ctime()}\t[keypress]\tPressed {Key.shift} key")
-
-
-def _switch_screen(seconds, tabs, key):
-    """Switches screen windows every x seconds
-
-    Args:
-        seconds (int): Seconds to wait between consecutive switch screen actions
-        tabs (int): Number of windows to switch at an instant
-        key (str) [alt|cmd]: Modifier key to press along with Tab key
-    """
-    this = current_thread()
-    this.alive = True
-    while this.alive:
-        sleep(seconds)
-        if not this.alive:
-            break
-
-        switch_screen(tabs, key)
+    log.debug(f"[keypress]\tPressed {Key.shift} key")
 
 
 def switch_screen(tabs, key):
@@ -85,47 +70,33 @@ def switch_screen(tabs, key):
         for _ in range(t):
             keyboard.press(Key.tab)
             keyboard.release(Key.tab)
-        print(f"{time.ctime()}\t[switch_screen]\tSwitched tab {t} {modifier} {Key.tab}")
+        log.debug(f"[switch_screen]\tSwitched tab {t} {modifier} {Key.tab}")
 
-
-def _move_mouse(seconds, pixels):
-    """Moves mouse every x seconds
-
-    Args:
-        seconds (int): Seconds to wait between consecutive move mouse actions
-        pixels ([type]): Number of pixels to move mouse
-    """
-    this = current_thread()
-    this.alive = True
-    while this.alive:
-        sleep(seconds)
-        if not this.alive:
-            break
-
-        move_mouse(pixels)
 
 def move_mouse(pixels):
     mouse.move(pixels, pixels)
     x, y = list("{:.2f}".format(coord) for coord in mouse.position)
-    print(f"{time.ctime()}\t[move_mouse]\tMoved mouse to {x}, {y}")
+    log.debug(f"[move_mouse]\tMoved mouse to {x}, {y}")
 
 
 def jiggle(pixels, mode, tabs, key):
-    c = randint(1,3)
-    if c == 1 and "m" in mode:
+    c = mode[randint(0,len(mode)-1)]
+    if c == "m":
         move_mouse(pixels)
-    if c == 2 and "k" in mode:
+    if c == "k":
         key_press()
-    if c == 3 and "s" in mode:
+    if c == "s":
         switch_screen(tabs, key)
         
 
-def _jiggle(seconds, pixels, mode, tabs, key):
+def _jiggle(pixels, mode, tabs, key):
     this = current_thread()
     this.alive = True
     while this.alive:
-        jiggle(pixels, mode, tabs, key)
-        sleep(seconds)
+        if state.is_jiggle_time():
+            jiggle(pixels, mode, tabs, key)
+        else:
+            sleep(0.1)
 
 
 @click.group()
@@ -168,22 +139,29 @@ def cli():
     default=special_keys[platform.system()],
 )
 def start(seconds, pixels, mode, tabs, key):
+    logging.basicConfig(
+        level=logging.NOTSET,
+        format='%(asctime)s %(levelname)s %(thread)d %(threadName)s %(name)s %% %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S'
+    )
 
+    state.set_jiggle_delay(seconds)
     try:
         threads = []
         threads.append(keyboardListener)
-        threads.append(_jiggle)
+        threads.append(mouseListener)
+        threads.append(Thread(target=_jiggle, args=(pixels, mode, tabs, key)))
         for t in threads:
             t.start()
 
         for t in threads:
             t.join()
     except KeyboardInterrupt as e:
-        print("Exiting...")
+        log.debug("Exiting...")
         for t in threads:
             t.alive = False
         for t in threads:
             t.join()
 
-        print("So you don't need me anymore?")
+        log.debug("So you don't need me anymore?")
         os._exit(1)
