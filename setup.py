@@ -13,7 +13,7 @@ setup(
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/bennyen/jiggler",
-    py_modules=["unobtrusive-jiggler"],
+    py_modules=["jiggler"],
     packages=find_packages(),
     install_requires=["click >= 7", "pynput >= 1"],
     python_requires=">=3",
@@ -36,6 +36,6 @@ setup(
     ],
     entry_points="""
         [console_scripts]
-        jiggler=jiggler:start
+        unobtrusive-jiggler=jiggler:start
     """,
 )
