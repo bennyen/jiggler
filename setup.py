@@ -4,7 +4,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
 
 setup(
-    name="jiggler",
+    name="unobtrusive-jiggler",
     version="0.0.5",
     author="Benny Ng",
     author_email="ritesh.ganjewala17@gmail.com",
@@ -13,7 +13,7 @@ setup(
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/bennyen/jiggler",
-    py_modules=["jiggler"],
+    py_modules=["unobtrusive-jiggler"],
     packages=find_packages(),
     install_requires=["click >= 7", "pynput >= 1"],
     python_requires=">=3",
