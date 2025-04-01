@@ -17,32 +17,6 @@ from src import state
 
 log = logging.getLogger(__name__)
 
-def on_move(x, y):
-    state.update_jiggle_time()
-    log.debug('Pointer moved to {0}'.format(
-        (x, y)))
-
-def on_click(x, y, button, pressed):
-    state.update_jiggle_time()
-    log.debug('{0} at {1}'.format(
-        'Pressed' if pressed else 'Released',
-        (x, y)))
-    if not pressed:
-        # Stop listener
-        return False
-
-def on_scroll(x, y, dx, dy):
-    state.update_jiggle_time()
-    log.debug('Scrolled {0} at {1}'.format(
-        'down' if dy < 0 else 'up',
-        (x, y)))
-def on_press(key):
-    state.update_jiggle_time()
-    log.debug('key pressed: ' + str(key))
-
-def on_release(key):
-    state.update_jiggle_time()
-
 keyboard = KeyboardController()
 mouse = MouseController()
 keyboardListener = KeyboardListener(on_press=state.update_jiggle_time, on_release=state.update_jiggle_time)
