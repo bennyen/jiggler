@@ -8,11 +8,28 @@ from time import sleep
 import click
 from pynput.keyboard import Controller as KeyboardController
 from pynput.keyboard import Key
+from pynput.keyboard import Listener as KeyboardListener
 from pynput.mouse import Controller as MouseController
+
+
 
 mouse = MouseController()
 keyboard = KeyboardController()
 
+def on_press(key):
+    try:
+        print('alphanumeric key {0} pressed'.format(
+            key.char))
+    except AttributeError:
+        print('special key {0} pressed'.format(
+            key))
+
+def on_release(key):
+    print('{0} released'.format(
+        key))
+
+
+keyboardListener = KeyboardListener(on_press=on_press, on_release=on_release)
 
 special_keys = {
     "Darwin": "cmd",
@@ -21,7 +38,7 @@ special_keys = {
 }
 
 
-def key_press(seconds):
+def _key_press(seconds):
     """Presses Shift key every x seconds
 
     Args:
@@ -34,12 +51,15 @@ def key_press(seconds):
         if not this.alive:
             break
 
-        keyboard.press(Key.shift)
-        keyboard.release(Key.shift)
-        print(f"{time.ctime()}\t[keypress]\tPressed {Key.shift} key")
+        key_press()
+
+def key_press():
+    keyboard.press(Key.shift)
+    keyboard.release(Key.shift)
+    print(f"{time.ctime()}\t[keypress]\tPressed {Key.shift} key")
 
 
-def switch_screen(seconds, tabs, key):
+def _switch_screen(seconds, tabs, key):
     """Switches screen windows every x seconds
 
     Args:
@@ -54,17 +74,21 @@ def switch_screen(seconds, tabs, key):
         if not this.alive:
             break
 
-        modifier = getattr(Key, key)
-        with keyboard.pressed(modifier):
-            t = tabs if tabs else randint(1, 3)
-
-            for _ in range(t):
-                keyboard.press(Key.tab)
-                keyboard.release(Key.tab)
-            print(f"{time.ctime()}\t[switch_screen]\tSwitched tab {t} {modifier} {Key.tab}")
+        switch_screen(tabs, key)
 
 
-def move_mouse(seconds, pixels):
+def switch_screen(tabs, key):
+    modifier = getattr(Key, key)
+    with keyboard.pressed(modifier):
+        t = tabs if tabs else randint(1, 3)
+
+        for _ in range(t):
+            keyboard.press(Key.tab)
+            keyboard.release(Key.tab)
+        print(f"{time.ctime()}\t[switch_screen]\tSwitched tab {t} {modifier} {Key.tab}")
+
+
+def _move_mouse(seconds, pixels):
     """Moves mouse every x seconds
 
     Args:
@@ -78,9 +102,30 @@ def move_mouse(seconds, pixels):
         if not this.alive:
             break
 
-        mouse.move(pixels, pixels)
-        x, y = list("{:.2f}".format(coord) for coord in mouse.position)
-        print(f"{time.ctime()}\t[move_mouse]\tMoved mouse to {x}, {y}")
+        move_mouse(pixels)
+
+def move_mouse(pixels):
+    mouse.move(pixels, pixels)
+    x, y = list("{:.2f}".format(coord) for coord in mouse.position)
+    print(f"{time.ctime()}\t[move_mouse]\tMoved mouse to {x}, {y}")
+
+
+def jiggle(pixels, mode, tabs, key):
+    c = randint(1,3)
+    if c == 1 and "m" in mode:
+        move_mouse(pixels)
+    if c == 2 and "k" in mode:
+        key_press()
+    if c == 3 and "s" in mode:
+        switch_screen(tabs, key)
+        
+
+def _jiggle(seconds, pixels, mode, tabs, key):
+    this = current_thread()
+    this.alive = True
+    while this.alive:
+        jiggle(pixels, mode, tabs, key)
+        sleep(seconds)
 
 
 @click.group()
@@ -126,15 +171,8 @@ def start(seconds, pixels, mode, tabs, key):
 
     try:
         threads = []
-        if "m" in mode:
-            threads.append(Thread(target=move_mouse, args=(seconds, pixels)))
-
-        if "k" in mode:
-            threads.append(Thread(target=key_press, args=(seconds,)))
-
-        if "s" in mode:
-            threads.append(Thread(target=switch_screen, args=(seconds, tabs, key)))
-
+        threads.append(keyboardListener)
+        threads.append(_jiggle)
         for t in threads:
             t.start()
 
